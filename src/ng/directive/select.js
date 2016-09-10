@@ -1,5 +1,7 @@
 'use strict';
 
+/* exported selectDirective, optionDirective */
+
 var noopNgModelController = { $setViewValue: noop, $render: noop };
 
 /**
@@ -11,7 +13,7 @@ var noopNgModelController = { $setViewValue: noop, $render: noop };
  * added `<option>` elements, perhaps by an `ngRepeat` directive.
  */
 var SelectController =
-        ['$element', '$scope', function($element, $scope) {
+        ['$element', '$scope', /** @this */ function($element, $scope) {
 
   var self = this,
       optionsMap = new HashMap();
@@ -29,28 +31,54 @@ var SelectController =
   // We can't just jqLite('<option>') since jqLite is not smart enough
   // to create it in <select> and IE barfs otherwise.
   self.unknownOption = jqLite(window.document.createElement('option'));
+
   self.renderUnknownOption = function(val) {
-    var unknownVal = '? ' + hashKey(val) + ' ?';
+    var unknownVal = self.generateUnknownOptionValue(val);
     self.unknownOption.val(unknownVal);
     $element.prepend(self.unknownOption);
+    setOptionAsSelected(self.unknownOption);
     $element.val(unknownVal);
   };
 
   self.updateUnknownOption = function(val) {
-    var unknownVal = '? ' + hashKey(val) + ' ?';
+    var unknownVal = self.generateUnknownOptionValue(val);
     self.unknownOption.val(unknownVal);
+    setOptionAsSelected(self.unknownOption);
     $element.val(unknownVal);
+  };
+
+  self.generateUnknownOptionValue = function(val) {
+    return '? ' + hashKey(val) + ' ?';
+  };
+
+  self.removeUnknownOption = function() {
+    if (self.unknownOption.parent()) self.unknownOption.remove();
+  };
+
+  // The empty option is an option with the value '' that te application developer can
+  // provide inside the select. When the model changes to a value that doesn't match an option,
+  // it is selected - so if an empty option is provided, no unknown option is generated.
+  // However, the empty option is not removed when the model matches an option. It is always selectable
+  // and indicates that a "null" selection has been made.
+  self.emptyOption = undefined;
+
+  self.selectEmptyOption = function() {
+    if (self.emptyOption) {
+      $element.val('');
+      setOptionAsSelected(self.emptyOption);
+    }
+  };
+
+  self.unselectEmptyOption = function() {
+    if (self.emptyOption) {
+      self.emptyOption.removeAttr('selected');
+    }
   };
 
   $scope.$on('$destroy', function() {
     // disable unknown option so that we don't do work when the whole select is being destroyed
     self.renderUnknownOption = noop;
   });
-
-  self.removeUnknownOption = function() {
-    if (self.unknownOption.parent()) self.unknownOption.remove();
-  };
-
 
   // Read the value of the select control, the implementation of this changes depending
   // upon whether the select can have multiple values and whether ngOptions is at work.
@@ -70,16 +98,24 @@ var SelectController =
   // Write the value to the select control, the implementation of this changes depending
   // upon whether the select can have multiple values and whether ngOptions is at work.
   self.writeValue = function writeSingleValue(value) {
+    // Make sure to remove the selected attribute from the previously selected option
+    // Otherwise, screen readers might get confused
+    var currentlySelectedOption = $element[0].options[$element[0].selectedIndex];
+    if (currentlySelectedOption) currentlySelectedOption.removeAttribute('selected');
+
     if (self.hasOption(value)) {
       self.removeUnknownOption();
+
       var hashedVal = hashKey(value);
       $element.val(hashedVal in self.selectValueMap ? hashedVal : value);
 
-      if (value === '') self.emptyOption.prop('selected', true); // to make IE9 happy
+      // Set selected attribute and property on selected option for screen readers
+      var selectedOption = $element[0].options[$element[0].selectedIndex];
+      setOptionAsSelected(jqLite(selectedOption));
     } else {
       if (value == null && self.emptyOption) {
         self.removeUnknownOption();
-        $element.val('');
+        self.selectEmptyOption();
       } else if (self.unknownOption.parent().length) {
         self.updateUnknownOption(value);
       } else {
@@ -183,15 +219,15 @@ var SelectController =
     } else if (interpolateValueFn) {
       // The value attribute is interpolated
       optionAttrs.$observe('value', function valueAttributeObserveAction(newVal) {
-        var currentVal = self.readValue();
+        // This method is overwritten in ngOptions and has side-effects!
+        self.readValue();
+
         var removal;
         var previouslySelected = optionElement.prop('selected');
-        var removedVal;
 
         if (isDefined(oldVal)) {
           self.removeOption(oldVal);
           removal = true;
-          removedVal = oldVal;
         }
         oldVal = newVal;
         self.addOption(newVal, optionElement);
@@ -220,7 +256,6 @@ var SelectController =
     }
 
 
-    var oldDisabled;
     optionAttrs.$observe('disabled', function(newVal) {
 
       // Since model updates will also select disabled options (like ngOptions),
@@ -233,7 +268,6 @@ var SelectController =
           self.ngModelCtrl.$setViewValue(null);
           self.ngModelCtrl.$render();
         }
-        oldDisabled = newVal;
       }
     });
 
@@ -253,6 +287,11 @@ var SelectController =
       }
     });
   };
+
+  function setOptionAsSelected(optionEl) {
+    optionEl.prop('selected', true); // needed for IE
+    optionEl.attr('selected', true);
+  }
 }];
 
 /**
@@ -362,7 +401,7 @@ var SelectController =
  *      $scope.data = {
  *       singleSelect: null,
  *       multipleSelect: [],
- *       option1: 'option-1',
+ *       option1: 'option-1'
  *      };
  *
  *      $scope.forceUnknownOption = function() {
@@ -395,7 +434,7 @@ var SelectController =
  *         {id: '1', name: 'Option A'},
  *         {id: '2', name: 'Option B'},
  *         {id: '3', name: 'Option C'}
- *       ],
+ *       ]
  *      };
  *   }]);
  * </file>
@@ -497,7 +536,6 @@ var SelectController =
  *   </file>
  *   <file name="protractor.js" type="protractor">
  *     it('should initialize to model', function() {
- *       var select = element(by.css('select'));
  *       expect(element(by.model('model.id')).$('option:checked').getText()).toEqual('Two');
  *     });
  *   </file>
@@ -619,7 +657,6 @@ var optionDirective = ['$interpolate', function($interpolate) {
       var interpolateValueFn, interpolateTextFn;
 
       if (isDefined(attr.ngValue)) {
-        // jshint noempty: false
         // Will be handled by registerOption
       } else if (isDefined(attr.value)) {
         // If the value attribute is defined, check if it contains an interpolation

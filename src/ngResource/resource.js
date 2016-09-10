@@ -132,9 +132,12 @@ function shallowClearAndCopy(src, dst) {
  *   Note that the parameter will be ignored, when calling a "GET" action method (i.e. an action
  *   method that does not accept a request body)
  *
- * @param {Object.<Object>=} actions Hash with declaration of custom actions that should extend
- *   the default set of resource actions. The declaration should be created in the format of {@link
- *   ng.$http#usage $http.config}:
+ * @param {Object.<Object>=} actions Hash with declaration of custom actions that will be available
+ *   in addition to the default set of resource actions (see below). If a custom action has the same
+ *   key as a default action (e.g. `save`), then the default action will be *overwritten*, and not
+ *   extended.
+ *
+ *   The declaration should be created in the format of {@link ng.$http#usage $http.config}:
  *
  *       {action1: {method:?, params:?, isArray:?, headers:?, ...},
  *        action2: {method:?, params:?, isArray:?, headers:?, ...},
@@ -159,12 +162,13 @@ function shallowClearAndCopy(src, dst) {
  *     transform function or an array of such functions. The transform function takes the http
  *     request body and headers and returns its transformed (typically serialized) version.
  *     By default, transformRequest will contain one function that checks if the request data is
- *     an object and serializes to using `angular.toJson`. To prevent this behavior, set
+ *     an object and serializes it using `angular.toJson`. To prevent this behavior, set
  *     `transformRequest` to an empty array: `transformRequest: []`
  *   - **`transformResponse`** –
- *     `{function(data, headersGetter)|Array.<function(data, headersGetter)>}` –
+ *     `{function(data, headersGetter, status)|Array.<function(data, headersGetter, status)>}` –
  *     transform function or an array of such functions. The transform function takes the http
- *     response body and headers and returns its transformed (typically deserialized) version.
+ *     response body, headers and status and returns its transformed (typically deserialized)
+ *     version.
  *     By default, transformResponse will contain one function that checks if the response looks
  *     like a JSON string and deserializes it using `angular.fromJson`. To prevent this behavior,
  *     set `transformResponse` to an empty array: `transformResponse: []`
@@ -238,9 +242,9 @@ function shallowClearAndCopy(src, dst) {
  *   - non-GET instance actions:  `instance.$action([parameters], [success], [error])`
  *
  *
- *   Success callback is called with (value, responseHeaders) arguments, where the value is
- *   the populated resource instance or collection object. The error callback is called
- *   with (httpResponse) argument.
+ *   Success callback is called with (value (Object|Array), responseHeaders (Function),
+ *   status (number), statusText (string)) arguments, where the value is the populated resource
+ *   instance or collection object. The error callback is called with (httpResponse) argument.
  *
  *   Class actions return empty instance (with additional properties below).
  *   Instance actions return promise of the action.
@@ -425,8 +429,9 @@ function shallowClearAndCopy(src, dst) {
  *
  */
 angular.module('ngResource', ['ng']).
-  provider('$resource', function() {
+  provider('$resource', function ResourceProvider() {
     var PROTOCOL_AND_DOMAIN_REGEX = /^https?:\/\/[^\/]*/;
+
     var provider = this;
 
     /**
@@ -470,7 +475,7 @@ angular.module('ngResource', ['ng']).
      * ```js
      *   angular.
      *     module('myApp').
-     *     config(['resourceProvider', function ($resourceProvider) {
+     *     config(['$resourceProvider', function ($resourceProvider) {
      *       $resourceProvider.defaults.actions.update = {
      *         method: 'PUT'
      *       };
@@ -482,7 +487,7 @@ angular.module('ngResource', ['ng']).
      * ```js
      *   angular.
      *     module('myApp').
-     *     config(['resourceProvider', function ($resourceProvider) {
+     *     config(['$resourceProvider', function ($resourceProvider) {
      *       $resourceProvider.defaults.actions = {
      *         create: {method: 'POST'}
      *         get:    {method: 'GET'},
@@ -538,12 +543,12 @@ angular.module('ngResource', ['ng']).
           var urlParams = self.urlParams = Object.create(null);
           forEach(url.split(/\W/), function(param) {
             if (param === 'hasOwnProperty') {
-              throw $resourceMinErr('badname', "hasOwnProperty is not a valid parameter name.");
+              throw $resourceMinErr('badname', 'hasOwnProperty is not a valid parameter name.');
             }
-            if (!(new RegExp("^\\d+$").test(param)) && param &&
-              (new RegExp("(^|[^\\\\]):" + param + "(\\W|$)").test(url))) {
+            if (!(new RegExp('^\\d+$').test(param)) && param &&
+              (new RegExp('(^|[^\\\\]):' + param + '(\\W|$)').test(url))) {
               urlParams[param] = {
-                isQueryParamValue: (new RegExp("\\?.*=:" + param + "(?:\\W|$)")).test(url)
+                isQueryParamValue: (new RegExp('\\?.*=:' + param + '(?:\\W|$)')).test(url)
               };
             }
           });
@@ -562,11 +567,11 @@ angular.module('ngResource', ['ng']).
               } else {
                 encodedVal = encodeUriSegment(val);
               }
-              url = url.replace(new RegExp(":" + urlParam + "(\\W|$)", "g"), function(match, p1) {
+              url = url.replace(new RegExp(':' + urlParam + '(\\W|$)', 'g'), function(match, p1) {
                 return encodedVal + p1;
               });
             } else {
-              url = url.replace(new RegExp("(\/?):" + urlParam + "(\\W|$)", "g"), function(match,
+              url = url.replace(new RegExp('(/?):' + urlParam + '(\\W|$)', 'g'), function(match,
                   leadingSlashes, tail) {
                 if (tail.charAt(0) === '/') {
                   return tail;
@@ -651,12 +656,11 @@ angular.module('ngResource', ['ng']).
           Resource[name] = function(a1, a2, a3, a4) {
             var params = {}, data, success, error;
 
-            /* jshint -W086 */ /* (purposefully fall through case statements) */
             switch (arguments.length) {
               case 4:
                 error = a4;
                 success = a3;
-              //fallthrough
+                // falls through
               case 3:
               case 2:
                 if (isFunction(a2)) {
@@ -668,13 +672,14 @@ angular.module('ngResource', ['ng']).
 
                   success = a2;
                   error = a3;
-                  //fallthrough
+                  // falls through
                 } else {
                   params = a1;
                   data = a2;
                   success = a3;
                   break;
                 }
+                // falls through
               case 1:
                 if (isFunction(a1)) success = a1;
                 else if (hasBody) data = a1;
@@ -683,10 +688,9 @@ angular.module('ngResource', ['ng']).
               case 0: break;
               default:
                 throw $resourceMinErr('badargs',
-                  "Expected up to 4 arguments [params, data, success, error], got {0} arguments",
+                  'Expected up to 4 arguments [params, data, success, error], got {0} arguments',
                   arguments.length);
             }
-            /* jshint +W086 */ /* (purposefully fall through case statements) */
 
             var isInstanceCall = this instanceof Resource;
             var value = isInstanceCall ? data : (action.isArray ? [] : new Resource(data));
@@ -695,6 +699,8 @@ angular.module('ngResource', ['ng']).
               defaultResponseInterceptor;
             var responseErrorInterceptor = action.interceptor && action.interceptor.responseError ||
               undefined;
+            var hasError = !!error;
+            var hasResponseErrorInterceptor = !!responseErrorInterceptor;
             var timeoutDeferred;
             var numericTimeoutPromise;
 
@@ -730,18 +736,16 @@ angular.module('ngResource', ['ng']).
 
               if (data) {
                 // Need to convert action.isArray to boolean in case it is undefined
-                // jshint -W018
                 if (angular.isArray(data) !== (!!action.isArray)) {
                   throw $resourceMinErr('badcfg',
                       'Error in resource configuration for action `{0}`. Expected response to ' +
                       'contain an {1} but got an {2} (Request: {3} {4})', name, action.isArray ? 'array' : 'object',
                     angular.isArray(data) ? 'array' : 'object', httpConfig.method, httpConfig.url);
                 }
-                // jshint +W018
                 if (action.isArray) {
                   value.length = 0;
                   forEach(data, function(item) {
-                    if (typeof item === "object") {
+                    if (typeof item === 'object') {
                       value.push(new Resource(item));
                     } else {
                       // Valid JSON values may be string literals, and these should not be converted
@@ -773,16 +777,22 @@ angular.module('ngResource', ['ng']).
             promise = promise.then(
               function(response) {
                 var value = responseInterceptor(response);
-                (success || noop)(value, response.headers);
+                (success || noop)(value, response.headers, response.status, response.statusText);
                 return value;
               },
-              responseErrorInterceptor || error ?
+              (hasError || hasResponseErrorInterceptor) ?
               function(response) {
-                (error || noop)(response);
-                (responseErrorInterceptor || noop)(response);
-                return response;
-              }
-              : undefined);
+                if (hasError) error(response);
+                return hasResponseErrorInterceptor ?
+                    responseErrorInterceptor(response) :
+                    $q.reject(response);
+              } :
+              undefined);
+            if (hasError && !hasResponseErrorInterceptor) {
+              // Avoid `Possibly Unhandled Rejection` error,
+              // but still fulfill the returned promise with a rejection
+              promise.catch(noop);
+            }
 
             if (!isInstanceCall) {
               // we are creating instance / collection

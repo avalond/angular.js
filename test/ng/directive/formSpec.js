@@ -290,7 +290,7 @@ describe('form', function() {
   describe('triggering commit value on submit', function() {
     it('should trigger update on form submit', function() {
       var form = $compile(
-          '<form name="test" ng-model-options="{ updateOn: \'\' }" >' +
+          '<form name="test" ng-model-options="{ updateOn: \'submit\' }" >' +
             '<input type="text" ng-model="name" />' +
           '</form>')(scope);
       scope.$digest();
@@ -305,7 +305,7 @@ describe('form', function() {
 
     it('should trigger update on form submit with nested forms', function() {
       var form = $compile(
-          '<form name="test" ng-model-options="{ updateOn: \'\' }" >' +
+          '<form name="test" ng-model-options="{ updateOn: \'submit\' }" >' +
             '<div class="ng-form" name="child">' +
               '<input type="text" ng-model="name" />' +
             '</div>' +
@@ -323,7 +323,7 @@ describe('form', function() {
     it('should trigger update before ng-submit is invoked', function() {
       var form = $compile(
           '<form name="test" ng-submit="submit()" ' +
-              'ng-model-options="{ updateOn: \'\' }" >' +
+              'ng-model-options="{ updateOn: \'submit\' }" >' +
             '<input type="text" ng-model="name" />' +
           '</form>')(scope);
       scope.$digest();
@@ -342,7 +342,7 @@ describe('form', function() {
   describe('rollback view value', function() {
     it('should trigger rollback on form controls', function() {
       var form = $compile(
-          '<form name="test" ng-model-options="{ updateOn: \'\' }" >' +
+          '<form name="test" ng-model-options="{ updateOn: \'submit\' }" >' +
             '<input type="text" ng-model="name" />' +
             '<button ng-click="test.$rollbackViewValue()" />' +
           '</form>')(scope);
@@ -358,7 +358,7 @@ describe('form', function() {
 
     it('should trigger rollback on form controls with nested forms', function() {
       var form = $compile(
-          '<form name="test" ng-model-options="{ updateOn: \'\' }" >' +
+          '<form name="test" ng-model-options="{ updateOn: \'submit\' }" >' +
             '<div class="ng-form" name="child">' +
               '<input type="text" ng-model="name" />' +
             '</div>' +
@@ -402,7 +402,7 @@ describe('form', function() {
       browserTrigger(doc.find('input'));
 
       // let the browser process all events (and potentially reload the page)
-      setTimeout(function() { nextTurn = true;});
+      window.setTimeout(function() { nextTurn = true;});
       job.waitsFor(function() { return nextTurn; })
       .runs(function() {
         expect(reloadPrevented).toBe(true);
@@ -453,7 +453,7 @@ describe('form', function() {
         browserTrigger(doc.find('button'), 'click');
 
         // let the browser process all events (and potentially reload the page)
-        setTimeout(function() { nextTurn = true;}, 100);
+        window.setTimeout(function() { nextTurn = true;}, 100);
 
         var job = createAsync(done);
         job.waitsFor(function() { return nextTurn; })
@@ -1092,7 +1092,7 @@ describe('form', function() {
           '<div ng-form name="nested{{idB}}"' +
           '</div>' +
         '</div>' +
-      '</form'
+      '</form>'
     )(scope);
 
     scope.$digest();
@@ -1118,7 +1118,7 @@ describe('form', function() {
   it('should rename forms with no parent when interpolated name changes', function() {
     var element = $compile('<form name="name{{nameID}}"></form>')(scope);
     var element2 = $compile('<div ng-form="ngform{{nameID}}"></div>')(scope);
-    scope.nameID = "A";
+    scope.nameID = 'A';
     scope.$digest();
     var form = element.controller('form');
     var form2 = element2.controller('form');
@@ -1127,7 +1127,7 @@ describe('form', function() {
     expect(form.$name).toBe('nameA');
     expect(form2.$name).toBe('ngformA');
 
-    scope.nameID = "B";
+    scope.nameID = 'B';
     scope.$digest();
     expect(scope.nameA).toBeUndefined();
     expect(scope.ngformA).toBeUndefined();

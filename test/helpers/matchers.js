@@ -19,9 +19,9 @@ beforeEach(function() {
           });
 
           var message = function() {
-            return "Expected to have " + presentClasses +
-              (absentClasses ? (" and not have " + absentClasses + "") : "") +
-              " but had " + element[0].className + ".";
+            return 'Expected to have ' + presentClasses +
+              (absentClasses ? (' and not have ' + absentClasses + '') : '') +
+              ' but had ' + element[0].className + '.';
           };
           return {
             pass: present && !absent,
@@ -30,6 +30,12 @@ beforeEach(function() {
         }
       };
     };
+  }
+
+  function DOMTester(a, b) {
+    if (a && b && a.nodeType > 0 && b.nodeType > 0) {
+      return a === b;
+    }
   }
 
   function isNgElementHidden(element) {
@@ -60,7 +66,7 @@ beforeEach(function() {
       function generateCompare(isNot) {
         return function(actual) {
           var message = valueFn(
-            "Expected object " + (isNot ? "not " : "") + "to be a promise");
+            'Expected object ' + (isNot ? 'not ' : '') + 'to be a promise');
           return { pass: isPromiseLike(actual), message: message };
         };
       }
@@ -72,7 +78,7 @@ beforeEach(function() {
       };
       function generateCompare(isNot) {
         return function(actual) {
-          var message = valueFn("Expected element " + (isNot ? "" : "not ") + "to have 'ng-hide' class");
+          var message = valueFn('Expected element ' + (isNot ? '' : 'not ') + 'to have \'ng-hide\' class');
           var pass = !isNgElementHidden(actual);
           if (isNot) {
             pass = !pass;
@@ -88,7 +94,7 @@ beforeEach(function() {
       };
       function generateCompare(isNot) {
         return function(actual) {
-          var message = valueFn("Expected element " + (isNot ? "not " : "") + "to have 'ng-hide' class");
+          var message = valueFn('Expected element ' + (isNot ? 'not ' : '') + 'to have \'ng-hide\' class');
           var pass = isNgElementHidden(actual);
           if (isNot) {
             pass = !pass;
@@ -111,12 +117,19 @@ beforeEach(function() {
           };
         }
       };
+    },
 
-      function DOMTester(a, b) {
-        if (a && b && a.nodeType > 0 && b.nodeType > 0) {
-          return a === b;
+    toEqualOneOf: function(util) {
+      return {
+        compare: function(actual) {
+          var expectedArgs = Array.prototype.slice.call(arguments, 1);
+          return {
+            pass: expectedArgs.some(function(expected) {
+              return util.equals(actual, expected, [DOMTester]);
+            })
+          };
         }
-      }
+      };
     },
 
     toEqualData: function() {
@@ -235,13 +248,13 @@ beforeEach(function() {
       };
       function hasClass(element, selector) {
         if (!element.getAttribute) return false;
-        return ((" " + (element.getAttribute('class') || '') + " ").replace(/[\n\t]/g, " ").
-            indexOf(" " + selector + " ") > -1);
+        return ((' ' + (element.getAttribute('class') || '') + ' ').replace(/[\n\t]/g, ' ').
+            indexOf(' ' + selector + ' ') > -1);
       }
       function generateCompare(isNot) {
         return function(actual, clazz) {
           var message = function() {
-            return "Expected '" + angular.mock.dump(actual) + "'" + (isNot ? " not " : "") + " to have class '" + clazz + "'.";
+            return 'Expected \'' + angular.mock.dump(actual) + '\'' + (isNot ? ' not ' : '') + ' to have class \'' + clazz + '\'.';
           };
           var classes = clazz.trim().split(/\s+/);
           for (var i = 0; i < classes.length; ++i) {
@@ -268,11 +281,11 @@ beforeEach(function() {
               // This function escapes all special regex characters.
               // We use it to create matching regex from arbitrary strings.
               // http://stackoverflow.com/questions/3446170/escape-string-for-use-in-javascript-regex
-              return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+              return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
             },
             codeRegex = new RegExp('^\\[' + escapeRegexp(namespace) + ':' + escapeRegexp(code) + '\\]'),
-            not = isNot ? "not " : "",
-            regex = jasmine.isA_("RegExp", content) ? content :
+            not = isNot ? 'not ' : '',
+            regex = jasmine.isA_('RegExp', content) ? content :
                       angular.isDefined(content) ? new RegExp(escapeRegexp(content)) : undefined;
 
           if (!angular.isFunction(actual)) {
@@ -290,10 +303,10 @@ beforeEach(function() {
           }
 
           var message = function() {
-            return "Expected function " + not + "to throw " +
-              namespace + "MinErr('" + code + "')" +
-              (regex ? " matching " + regex.toString() : "") +
-              (exception ? ", but it threw " + exceptionMessage : ".");
+            return 'Expected function ' + not + 'to throw ' +
+              namespace + 'MinErr(\'' + code + '\')' +
+              (regex ? ' matching ' + regex.toString() : '') +
+              (exception ? ', but it threw ' + exceptionMessage : '.');
           };
 
           result = codeRegex.test(exceptionMessage);
@@ -319,6 +332,47 @@ beforeEach(function() {
           }
         };
       }
+    },
+    toBeMarkedAsSelected: function() {
+      // Selected is special because the element property and attribute reflect each other's state.
+      // IE9 will wrongly report hasAttribute('selected') === true when the property is
+      // undefined or null, and the dev tools show that no attribute is set
+      return {
+        compare: function(actual) {
+          var errors = [];
+          if (actual.selected === null || typeof actual.selected === 'undefined' || actual.selected === false) {
+            errors.push('Expected option property "selected" to be truthy');
+          }
+
+          if (msie !== 9 && actual.hasAttribute('selected') === false) {
+            errors.push('Expected option to have attribute "selected"');
+          }
+
+          var result = {
+            pass: errors.length === 0,
+            message: errors.join('\n')
+          };
+
+          return result;
+        },
+        negativeCompare: function(actual) {
+          var errors = [];
+          if (actual.selected) {
+            errors.push('Expected option property "selected" to be falsy');
+          }
+
+          if (msie !== 9 && actual.hasAttribute('selected')) {
+            errors.push('Expected option not to have attribute "selected"');
+          }
+
+          var result = {
+            pass: errors.length === 0,
+            message: errors.join('\n')
+          };
+
+          return result;
+        }
+      };
     }
   });
 });

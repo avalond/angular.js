@@ -2,10 +2,11 @@
 
 /* global shallowCopy: false */
 
-// There are necessary for `shallowCopy()` (included via `src/shallowCopy.js`).
+// `isArray` and `isObject` are necessary for `shallowCopy()` (included via `src/shallowCopy.js`).
 // They are initialized inside the `$RouteProvider`, to ensure `window.angular` is available.
 var isArray;
 var isObject;
+var isDefined;
 
 /**
  * @ngdoc module
@@ -22,14 +23,22 @@ var isObject;
  *
  * <div doc-module-components="ngRoute"></div>
  */
- /* global -ngRouteModule */
-var ngRouteModule = angular.module('ngRoute', ['ng']).
-                        provider('$route', $RouteProvider),
-    $routeMinErr = angular.$$minErr('ngRoute');
+/* global -ngRouteModule */
+var ngRouteModule = angular.
+  module('ngRoute', []).
+  provider('$route', $RouteProvider).
+  // Ensure `$route` will be instantiated in time to capture the initial `$locationChangeSuccess`
+  // event (unless explicitly disabled). This is necessary in case `ngView` is included in an
+  // asynchronously loaded template.
+  run(instantiateRoute);
+var $routeMinErr = angular.$$minErr('ngRoute');
+var isEagerInstantiationEnabled;
+
 
 /**
  * @ngdoc provider
  * @name $routeProvider
+ * @this
  *
  * @description
  *
@@ -44,6 +53,7 @@ var ngRouteModule = angular.module('ngRoute', ['ng']).
 function $RouteProvider() {
   isArray = angular.isArray;
   isObject = angular.isObject;
+  isDefined = angular.isDefined;
 
   function inherit(parent, extra) {
     return angular.extend(Object.create(parent), extra);
@@ -287,6 +297,47 @@ function $RouteProvider() {
     return this;
   };
 
+  /**
+   * @ngdoc method
+   * @name $routeProvider#eagerInstantiationEnabled
+   * @kind function
+   *
+   * @description
+   * Call this method as a setter to enable/disable eager instantiation of the
+   * {@link ngRoute.$route $route} service upon application bootstrap. You can also call it as a
+   * getter (i.e. without any arguments) to get the current value of the
+   * `eagerInstantiationEnabled` flag.
+   *
+   * Instantiating `$route` early is necessary for capturing the initial
+   * {@link ng.$location#$locationChangeStart $locationChangeStart} event and navigating to the
+   * appropriate route. Usually, `$route` is instantiated in time by the
+   * {@link ngRoute.ngView ngView} directive. Yet, in cases where `ngView` is included in an
+   * asynchronously loaded template (e.g. in another directive's template), the directive factory
+   * might not be called soon enough for `$route` to be instantiated _before_ the initial
+   * `$locationChangeSuccess` event is fired. Eager instantiation ensures that `$route` is always
+   * instantiated in time, regardless of when `ngView` will be loaded.
+   *
+   * The default value is true.
+   *
+   * **Note**:<br />
+   * You may want to disable the default behavior when unit-testing modules that depend on
+   * `ngRoute`, in order to avoid an unexpected request for the default route's template.
+   *
+   * @param {boolean=} enabled - If provided, update the internal `eagerInstantiationEnabled` flag.
+   *
+   * @returns {*} The current value of the `eagerInstantiationEnabled` flag if used as a getter or
+   *     itself (for chaining) if used as a setter.
+   */
+  isEagerInstantiationEnabled = true;
+  this.eagerInstantiationEnabled = function eagerInstantiationEnabled(enabled) {
+    if (isDefined(enabled)) {
+      isEagerInstantiationEnabled = enabled;
+      return this;
+    }
+
+    return isEagerInstantiationEnabled;
+  };
+
 
   this.$get = ['$rootScope',
                '$location',
@@ -380,12 +431,12 @@ function $RouteProvider() {
      *      })
      *
      *      .controller('BookController', function($scope, $routeParams) {
-     *          $scope.name = "BookController";
+     *          $scope.name = 'BookController';
      *          $scope.params = $routeParams;
      *      })
      *
      *      .controller('ChapterController', function($scope, $routeParams) {
-     *          $scope.name = "ChapterController";
+     *          $scope.name = 'ChapterController';
      *          $scope.params = $routeParams;
      *      })
      *
@@ -418,15 +469,15 @@ function $RouteProvider() {
      *     it('should load and compile correct template', function() {
      *       element(by.linkText('Moby: Ch1')).click();
      *       var content = element(by.css('[ng-view]')).getText();
-     *       expect(content).toMatch(/controller\: ChapterController/);
-     *       expect(content).toMatch(/Book Id\: Moby/);
-     *       expect(content).toMatch(/Chapter Id\: 1/);
+     *       expect(content).toMatch(/controller: ChapterController/);
+     *       expect(content).toMatch(/Book Id: Moby/);
+     *       expect(content).toMatch(/Chapter Id: 1/);
      *
      *       element(by.partialLinkText('Scarlet')).click();
      *
      *       content = element(by.css('[ng-view]')).getText();
-     *       expect(content).toMatch(/controller\: BookController/);
-     *       expect(content).toMatch(/Book Id\: Scarlet/);
+     *       expect(content).toMatch(/controller: BookController/);
+     *       expect(content).toMatch(/Book Id: Scarlet/);
      *     });
      *   </file>
      * </example>
@@ -790,4 +841,12 @@ function $RouteProvider() {
       return result.join('');
     }
   }];
+}
+
+instantiateRoute.$inject = ['$injector'];
+function instantiateRoute($injector) {
+  if (isEagerInstantiationEnabled) {
+    // Instantiate `$route`
+    $injector.get('$route');
+  }
 }

@@ -69,7 +69,7 @@ The example below therefore calls the filter directly in the controller.
 By this, the controller is able to call the filter only when needed (e.g. when the data is loaded from the backend
 or the filter expression is changed).
 
-<example module="FilterInControllerModule">
+<example module="FilterInControllerModule" name="filter-in-controller">
   <file name="index.html">
     <div ng-controller="FilterController as ctrl">
       <div>
@@ -85,7 +85,7 @@ or the filter expression is changed).
 
   <file name="script.js">
     angular.module('FilterInControllerModule', []).
-      controller('FilterController', ['filterFilter', function(filterFilter) {
+      controller('FilterController', ['filterFilter', function FilterController(filterFilter) {
         this.array = [
           {name: 'Tobias'},
           {name: 'Jeff'},
@@ -123,7 +123,7 @@ your filters, then you can use capitalization (`myappSubsectionFilterx`) or unde
 The following sample filter reverses a text string. In addition, it conditionally makes the
 text upper-case.
 
-<example module="myReverseFilterApp">
+<example module="myReverseFilterApp" name="filter-reverse">
   <file name="index.html">
     <div ng-controller="MyController">
       <input ng-model="greeting" type="text"><br>
@@ -139,7 +139,7 @@ text upper-case.
       .filter('reverse', function() {
         return function(input, uppercase) {
           input = input || '';
-          var out = "";
+          var out = '';
           for (var i = 0; i < input.length; i++) {
             out = input.charAt(i) + out;
           }
@@ -168,7 +168,7 @@ argument for the filter.
 If you however do need to write a stateful filter, you have to mark the filter as `$stateful`, which
 means that it will be executed one or more times during the each `$digest` cycle.
 
-<example module="myStatefulFilterApp">
+<example module="myStatefulFilterApp" name="filter-stateful">
   <file name="index.html">
     <div ng-controller="MyController">
       Input: <input ng-model="greeting" type="text"><br>
@@ -200,4 +200,4 @@ means that it will be executed one or more times during the each `$digest` cycle
 
 ## Testing custom filters
 
-See the [phonecat tutorial](http://docs.angularjs.org/tutorial/step_09#test) for an example.
+See the [phonecat tutorial](http://docs.angularjs.org/tutorial/step_11#testing) for an example.

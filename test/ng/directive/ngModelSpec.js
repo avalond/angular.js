@@ -906,8 +906,8 @@ describe('ngModel', function() {
 
         expect(function() {
           scope.$apply('value = "123"');
-        }).toThrowMinErr("ngModel", "nopromise",
-          "Expected asynchronous validator to return a promise but got 'true' instead.");
+        }).toThrowMinErr('ngModel', 'nopromise',
+          'Expected asynchronous validator to return a promise but got \'true\' instead.');
       }));
 
 
@@ -1095,6 +1095,7 @@ describe('ngModel', function() {
 
       it('should be possible to extend Object prototype and still be able to do form validation',
         inject(function($compile, $rootScope) {
+        // eslint-disable-next-line no-extend-native
         Object.prototype.someThing = function() {};
         var element = $compile('<form name="myForm">' +
                                  '<input type="text" name="username" ng-model="username" minlength="10" required />' +
@@ -1361,7 +1362,7 @@ describe('ngModel', function() {
       expect(element.hasClass('ng-valid-email')).toBe(true);
       expect(element.hasClass('ng-invalid-email')).toBe(false);
 
-      $rootScope.$apply("value = 'invalid-email'");
+      $rootScope.$apply('value = \'invalid-email\'');
       expect(element).toBeInvalid();
       expect(element).toBePristine();
       expect(element.hasClass('ng-valid-email')).toBe(false);
@@ -1630,7 +1631,7 @@ describe('ngModel', function() {
       expect(isFormValid).toBe(false);
       expect($rootScope.myForm.$valid).toBe(false);
 
-      $rootScope.value='value';
+      $rootScope.value = 'value';
       $rootScope.$apply();
       expect(isFormValid).toBe(true);
       expect($rootScope.myForm.$valid).toBe(true);
@@ -1647,7 +1648,7 @@ describe('ngModel', function() {
       var animations = [];
       for (var i = 0; i < queue.length; i++) {
         var animation = queue[i];
-        if (animation.element[0] == node) {
+        if (animation.element[0] === node) {
           animations.push(animation);
         }
       }
@@ -1770,6 +1771,38 @@ describe('ngModel', function() {
 });
 
 
+describe('$modelOptions', function() {
+
+  it('should use the values in ngModelOptionsProvider.defaultOptions if not overridden', function() {
+    inject(function($modelOptions) {
+      expect($modelOptions.getOption('updateOn')).toEqual('');
+      expect($modelOptions.getOption('updateOnDefault')).toEqual(true);
+      expect($modelOptions.getOption('debounce')).toBe(0);
+    });
+  });
+
+  it('should allow the defaults to be updated by replacing the object in ngModelOptionsProvider.defaultOptions', function() {
+    module(function($modelOptionsProvider) {
+      $modelOptionsProvider.defaultOptions = {
+        updateOn: 'blur'
+      };
+    });
+    inject(function($modelOptions) {
+      expect($modelOptions.getOption('updateOn')).toEqual('blur');
+      expect($modelOptions.getOption('updateOnDefault')).toEqual(false);
+    });
+  });
+
+  it('should update on default in case default options do not include updateOn', function() {
+    module(function($modelOptionsProvider) {
+      delete $modelOptionsProvider.defaultOptions.updateOn;
+    });
+    inject(function($modelOptions) {
+      expect($modelOptions.getOption('updateOnDefault')).toEqual(true);
+    });
+  });
+});
+
 describe('ngModelOptions attributes', function() {
 
   var helper = {}, $rootScope, $compile, $timeout, $q;
@@ -1781,6 +1814,70 @@ describe('ngModelOptions attributes', function() {
     $rootScope = _$rootScope_;
     $timeout = _$timeout_;
     $q = _$q_;
+  }));
+
+
+  it('should inherit options from ngModelOptions directives declared on ancestor elements', function() {
+    var container = $compile('<div ng-model-options="{ allowInvalid: true }">' +
+               '<form ng-model-options="{ updateOn: \'blur\' }">' +
+                 '<input ng-model-options="{ updateOn: \'default\' }">' +
+                '</form>' +
+              '</div>')($rootScope);
+
+    var form = container.find('form');
+    var input = container.find('input');
+
+    var containerOptions = container.controller('ngModelOptions').$options;
+    var formOptions = form.controller('ngModelOptions').$options;
+    var inputOptions = input.controller('ngModelOptions').$options;
+
+    expect(inputOptions.getOption('allowInvalid')).toEqual(true);
+    expect(formOptions.getOption('allowInvalid')).toEqual(true);
+    expect(containerOptions.getOption('allowInvalid')).toEqual(true);
+
+    expect(inputOptions.getOption('updateOn')).toEqual('');
+    expect(inputOptions.getOption('updateOnDefault')).toEqual(true);
+    expect(formOptions.getOption('updateOn')).toEqual('blur');
+    expect(formOptions.getOption('updateOnDefault')).toEqual(false);
+    expect(containerOptions.getOption('updateOn')).toEqual('');
+    expect(containerOptions.getOption('updateOnDefault')).toEqual(true);
+
+    dealoc(container);
+  });
+
+
+  it('should inherit options from $modelOptions.defaultOptions if there is no ngModelOptions directive', inject(function($modelOptions) {
+    var inputElm = helper.compileInput(
+        '<input type="text" ng-model="name" name="alias" />');
+
+    var inputOptions = $rootScope.form.alias.$options;
+    expect(inputOptions.getOption('updateOn')).toEqual($modelOptions.getOption('updateOn'));
+    expect(inputOptions.getOption('updateOnDefault')).toEqual($modelOptions.getOption('updateOnDefault'));
+    expect(inputOptions.getOption('debounce')).toEqual($modelOptions.getOption('debounce'));
+  }));
+
+
+  it('should inherit options from $modelOptions.defaultOptions that are not specified on the input element', inject(function($modelOptions) {
+    var inputElm = helper.compileInput(
+        '<input type="text" ng-model="name" name="alias" ng-model-options="{ updateOn: \'blur\' }"/>');
+
+    var inputOptions = $rootScope.form.alias.$options;
+    expect(inputOptions.getOption('debounce')).toEqual($modelOptions.getOption('debounce'));
+    expect($modelOptions.getOption('updateOnDefault')).toBe(true);
+    expect(inputOptions.getOption('updateOnDefault')).toBe(false);
+  }));
+
+
+  it('should inherit options from $modelOptions.defaultOptions that are not specified in an ngModelOptions directive', inject(function($modelOptions) {
+    var form = $compile('<form name="form" ng-model-options="{ updateOn: \'blur\' }">' +
+                               '<input name="alias" ng-model="x">' +
+                             '</form>')($rootScope);
+    var inputOptions = $rootScope.form.alias.$options;
+
+    expect(inputOptions.getOption('debounce')).toEqual($modelOptions.getOption('debounce'));
+    expect($modelOptions.getOption('updateOnDefault')).toBe(true);
+    expect(inputOptions.getOption('updateOnDefault')).toBe(false);
+    dealoc(form);
   }));
 
 
@@ -1921,7 +2018,7 @@ describe('ngModelOptions attributes', function() {
           'ng-model-options="{ updateOn: \'blur\'}"' +
         '/>');
 
-    $rootScope.$apply("color = 'white'");
+    $rootScope.$apply('color = \'white\'');
     browserTrigger(inputElm[2], 'click');
     expect($rootScope.color).toBe('white');
 
@@ -1943,7 +2040,7 @@ describe('ngModelOptions attributes', function() {
           'ng-model-options="{ updateOn: \'blur default\' }"' +
         '/>');
 
-    $rootScope.$apply("color = 'white'");
+    $rootScope.$apply('color = \'white\'');
     browserTrigger(inputElm[2], 'click');
     expect($rootScope.color).toBe('blue');
   });
@@ -2186,7 +2283,7 @@ describe('ngModelOptions attributes', function() {
         'ng-model-options="{ updateOn: \'blur\' }" />');
 
     helper.changeInputValueTo('a');
-    $rootScope.$apply("name = 'b'");
+    $rootScope.$apply('name = \'b\'');
     browserTrigger(inputElm, 'blur');
     expect($rootScope.name).toBe('b');
   });

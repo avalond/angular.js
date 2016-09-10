@@ -53,7 +53,6 @@
  * {@link ngAria.$ariaProvider#config config} method. For more details, see the
  * {@link guide/accessibility Developer Guide}.
  */
- /* global -ngAriaModule */
 var ngAriaModule = angular.module('ngAria', ['ng']).
                         provider('$aria', $AriaProvider);
 
@@ -70,6 +69,7 @@ var isNodeOneOf = function(elem, nodeTypeArray) {
 /**
  * @ngdoc provider
  * @name $ariaProvider
+ * @this
  *
  * @description
  *
@@ -252,14 +252,6 @@ ngAriaModule.directive('ngShow', ['$aria', function($aria) {
       var shape = getShape(attr, elem);
 
       return {
-        pre: function(scope, elem, attr, ngModel) {
-          if (shape === 'checkbox') {
-            //Use the input[checkbox] $isEmpty implementation for elements with checkbox roles
-            ngModel.$isEmpty = function(value) {
-              return value === false;
-            };
-          }
-        },
         post: function(scope, elem, attr, ngModel) {
           var needsTabIndex = shouldAttachAttr('tabindex', 'tabindex', elem, false);
 
@@ -269,7 +261,7 @@ ngAriaModule.directive('ngShow', ['$aria', function($aria) {
 
           function getRadioReaction(newVal) {
             // Strict comparison would cause a BC
-            /* jshint eqeqeq:false */
+            // eslint-disable-next-line eqeqeq
             var boolVal = (attr.value == ngModel.$viewValue);
             elem.attr('aria-checked', boolVal);
           }
